@@ -1,29 +1,102 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {GiftedChat} from 'react-native-gifted-chat';
 import {Image, Pressable, StyleSheet, Text} from 'react-native';
-export default function Chat({onBack, selectedUser}) {
+import {getDatabase, ref, get, update, onValue, off} from 'firebase/database';
+
+export default function Chat({onBack, myData, selectedUser}) {
   const [messages, setMessages] = useState([]);
 
   useEffect(() => {
-    setMessages([
-      {
-        _id: 1,
-        text: 'Hello developer',
-        createdAt: new Date(),
-        user: {
-          _id: 2,
-          name: 'React Native',
-          avatar: 'https://placeimg.com/140/140/any',
-        },
-      },
-    ]);
-  }, []);
+    const loadData = async () => {
+      const chatroom = await fetchMessages();
+      const renderedMessages = renderMessages(chatroom.messages);
+      setMessages(renderedMessages);
+    };
+    loadData();
 
-  const onSend = useCallback((messages = []) => {
-    setMessages((previousMessages) =>
-      GiftedChat.append(previousMessages, messages),
+    const database = getDatabase();
+
+    // set chatroom change listener
+    const chatroomRef = ref(database, `chatrooms/${selectedUser.chatroomId}`);
+    onValue(chatroomRef, snapshot => {
+      const data = snapshot.val();
+      setMessages(renderMessages(data.messages));
+    });
+    return () => {
+      off(chatroomRef);
+    };
+  }, [
+    fetchMessages,
+    myData.avatar,
+    myData.username,
+    renderMessages,
+    selectedUser.avatar,
+    selectedUser.chatroomId,
+    selectedUser.username,
+  ]);
+
+  const renderMessages = useCallback(
+    msgs => {
+      return msgs
+        ? msgs.reverse().map((m, index) => ({
+            ...m,
+            _id: index,
+            user: {
+              avatar:
+                m.sender === myData.username
+                  ? myData.avatar
+                  : selectedUser.avatar,
+              name:
+                m.sender === myData.username
+                  ? myData.username
+                  : selectedUser.username,
+              _id:
+                m.sender === myData.username
+                  ? myData.username
+                  : selectedUser.username,
+            },
+          }))
+        : [];
+    },
+    [
+      myData.avatar,
+      myData.username,
+      selectedUser.avatar,
+      selectedUser.username,
+    ],
+  );
+
+  const fetchMessages = useCallback(async () => {
+    const database = getDatabase();
+
+    const snapshot = await get(
+      ref(database, `chatrooms/${selectedUser.chatroomId}`),
     );
-  }, []);
+
+    return snapshot.val();
+  }, [selectedUser.chatroomId]);
+
+  const onSend = useCallback(
+    async (msg = []) => {
+      const database = getDatabase();
+
+      const currentChatroom = await fetchMessages();
+      const lastMessages = currentChatroom.messages || [];
+
+      update(ref(database, 'chatrooms/' + selectedUser.chatroomId), {
+        messages: [
+          ...lastMessages,
+          {
+            text: msg[0].text,
+            sender: myData.username,
+            createdAt: new Date(),
+          },
+        ],
+      });
+      setMessages(previousMessages => GiftedChat.append(previousMessages, msg));
+    },
+    [fetchMessages, myData.username, selectedUser.chatroomId],
+  );
 
   return (
     <>
@@ -33,9 +106,9 @@ export default function Chat({onBack, selectedUser}) {
       </Pressable>
       <GiftedChat
         messages={messages}
-        onSend={(messages) => onSend(messages)}
+        onSend={newMessage => onSend(newMessage)}
         user={{
-          _id: 1,
+          _id: myData.username,
         }}
       />
     </>

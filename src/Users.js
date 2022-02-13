@@ -15,13 +15,13 @@ export default function Users({
   onClickUser,
   userToAdd,
   setUserToAdd,
-  onAddUser,
+  onAddFriend,
 }) {
   const renderUser = ({item}) => {
     return (
       <Pressable onPress={() => onClickUser(item)} style={styles.row}>
         <Image style={styles.avatar} source={{uri: item.avatar}} />
-        <Text>{item.name}</Text>
+        <Text>{item.username}</Text>
       </Pressable>
     );
   };
@@ -33,12 +33,12 @@ export default function Users({
           onChangeText={setUserToAdd}
           value={userToAdd}
         />
-        <Button title={'Add User'} onPress={onAddUser} />
+        <Button title={'Add User'} onPress={() => onAddFriend(userToAdd)} />
       </View>
       <FlatList
         data={users}
         renderItem={renderUser}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={item => item.username.toString()}
       />
     </>
   );
